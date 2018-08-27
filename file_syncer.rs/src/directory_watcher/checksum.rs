@@ -8,6 +8,16 @@ use std::collections::HashMap;
 
 const HAS_CHANGED: bool = true;
 
+pub fn calc_file_checksum(path: &Path) -> u32 {
+    match read_file(path) {
+        Ok(content) => calculate_crc32(&content),
+        Err(e) => {
+            eprintln!("Error occured while caluclating checksum: {:?}", e);
+            0
+        }
+    }    
+}
+
 /// Checks if the checksum of a file is the same
 pub fn has_file_changed(file_path: &Path, crc32_ieee_checksum: &u32) -> (bool, u32) {
     match read_file(file_path) {

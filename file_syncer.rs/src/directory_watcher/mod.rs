@@ -1,17 +1,17 @@
+mod checksum;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::{thread, time, time::SystemTime};
+use std::{thread, time};
 use std::error::Error;
 use std::fs::{ReadDir, Metadata, DirEntry};
 
 use error::PathError;
 
-mod checksum;
-
 pub struct DirectoryWatcher<'a> {
     /// Indicates how often should the directory be checked.
     secs_interval: u64,
-    file_register: HashMap<PathBuf, SystemTime>,
+    file_register: HashMap<PathBuf, u32>,
     dir: &'a Path,
 }
 
@@ -41,12 +41,11 @@ impl<'a> DirectoryWatcher<'a> {
         for dir_entry in path_cont {
             if let Ok(dir_entry) = dir_entry {
                 let meta_data: Metadata = dir_entry.metadata()?;
-                let modified_time = meta_data.modified()?;
                 let path = dir_entry.path();
                 let is_new = self.is_new_file(&meta_data, &dir_entry);
-                let has_changed =  self.has_file_changed(&path, &modified_time);
+                let (has_changed, checksum) =  self.has_file_changed(&path);
                 if is_new || has_changed {
-                    self.register_file(path, modified_time);
+                    self.register_file(path, checksum);
                     changed_files.push(dir_entry.path());
                 }
             }
@@ -65,15 +64,15 @@ impl<'a> DirectoryWatcher<'a> {
     }
 
     /// Registers file when it can be converted to a valid &str.
-    fn register_file(&mut self, path: PathBuf, modified_time: SystemTime) {
-        self.file_register.insert(path, modified_time);
+    fn register_file(&mut self, path: PathBuf, checksum: u32) {
+        self.file_register.insert(path, checksum);
     }
 
     /// Checks if the modified time is different
-    fn has_file_changed(&self, path: &PathBuf, modified_time: &SystemTime) -> bool {
+    fn has_file_changed(&self, path: &PathBuf) -> (bool, u32) {
         match self.file_register.get(path) {
-            Some(registered_time) => *modified_time != *registered_time,
-            None => false
+            Some(registered_checksum) => checksum::has_file_changed(path, registered_checksum),
+            None => (false, checksum::calc_file_checksum(path))
         }
     }
 }
@@ -82,11 +81,10 @@ impl<'a> DirectoryWatcher<'a> {
 mod tests {
 
     use super::DirectoryWatcher;
-    use std::fs::{self, File, Metadata};
+    use std::fs::{self, File};
     use std::io::prelude::*;
     use std::fs::remove_file;
     use std::path::Path;
-    use std::time::SystemTime;
 
     #[test]
     fn test_new_directorywatcher_path_ok() {
@@ -136,7 +134,7 @@ mod tests {
     #[test]
     fn test_emitted_changed_files_one_file_added_and_change_it_afterwards() {
         let create_file = "test.d/4/test.txt";
-        let mut test = DirectoryWatcher::new(60, "./test.d/4").unwrap();
+        let mut test = DirectoryWatcher::new(5, "./test.d/4").unwrap();
 
         let mut file = try_create_file(create_file, b"A simple text");
         for i in 0..5 {
