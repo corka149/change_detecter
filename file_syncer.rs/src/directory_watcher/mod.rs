@@ -8,19 +8,19 @@ use std::fs::{ReadDir, Metadata, DirEntry};
 
 use error::PathError;
 
-pub struct DirectoryWatcher<'a> {
+pub struct DirectoryWatcher {
     /// Indicates how often should the directory be checked.
     secs_interval: u64,
     file_register: HashMap<PathBuf, u32>,
-    dir: &'a Path,
+    dir: PathBuf,
     recurisve: bool
 }
 
-impl<'a> DirectoryWatcher<'a> {
+impl DirectoryWatcher {
     /// Creates a new directory watcher. It must be defined an check interval in milliseconds
     /// and a path to the directory which should be watched.
     pub fn new(secs_interval: u64, path: &str, recurisve: bool) -> Result<DirectoryWatcher, PathError> {
-        let path = Path::new(path);
+        let path = PathBuf::from(path);
         if !path.is_dir() {
             return Err(PathError);
         }
@@ -28,21 +28,22 @@ impl<'a> DirectoryWatcher<'a> {
         Ok(DirectoryWatcher {
             secs_interval,
             file_register: HashMap::new(),
-            dir: Path::new(path),
+            dir: path,
             recurisve: recurisve
         })
     }
     
     /// Will wait for the setted interval and then emitt the files that were added oder changed.
-    pub fn emitted_changed_files(&mut self) -> Result<Vec<PathBuf>, Box<Error>> {
+    pub fn emitted_changed_files(&mut self) -> Result<Vec<String>, Box<Error>> {
         let millis = time::Duration::from_secs(self.secs_interval);
         thread::sleep(millis);
-        self.collect_changed_files(self.dir)
+        let dir_clone  = self.dir.clone();
+        self.collect_changed_files(&dir_clone)
     }
 
     /// Collect all changed file in the defined dir and also recurisve when configured.
-    fn collect_changed_files(&mut self, path: &Path) -> Result<Vec<PathBuf>, Box<Error>> {
-        let mut changed_files: Vec<PathBuf> = Vec::new();
+    fn collect_changed_files(&mut self, path: &Path) -> Result<Vec<String>, Box<Error>> {
+        let mut changed_files: Vec<String> = Vec::new();
 
         let path_cont: ReadDir = path.read_dir()?;
         for dir_entry in path_cont {
@@ -53,7 +54,9 @@ impl<'a> DirectoryWatcher<'a> {
                 let (has_changed, checksum) =  self.has_file_changed(&path);
                 if is_new || has_changed {
                     self.register_file(path, checksum);
-                    changed_files.push(dir_entry.path());
+                    if let Some(path_string) = DirectoryWatcher::convert_to_string(&dir_entry.path()) {
+                        changed_files.push(path_string);
+                    }
                 } else if meta_data.is_dir() && self.recurisve {
                     let files = self.collect_changed_files(&path)?;
                     changed_files.extend(files);
@@ -83,6 +86,13 @@ impl<'a> DirectoryWatcher<'a> {
         match self.file_register.get(path) {
             Some(registered_checksum) => checksum::has_file_changed(path, registered_checksum),
             None => (false, checksum::calc_file_checksum(path))
+        }
+    }
+
+    fn convert_to_string(path: &Path) -> Option<String> {
+        match path.as_os_str().to_str() {
+            Some(strng) => Some(String::from(strng)),
+            None => None
         }
     }
 }

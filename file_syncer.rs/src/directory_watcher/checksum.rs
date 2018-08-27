@@ -4,7 +4,6 @@ use std::io::prelude::*;
 use std::path::Path;
 use crc::crc32;
 use std;
-use std::collections::HashMap;
 
 const HAS_CHANGED: bool = true;
 
@@ -30,18 +29,6 @@ pub fn has_file_changed(file_path: &Path, crc32_ieee_checksum: &u32) -> (bool, u
             (HAS_CHANGED, 0)
         }
     }
-}
-
-/// Checks if a list of files is unchanged
-pub fn have_files_changed<'a>(files_and_checksums: &mut HashMap<&'a Path, u32>) -> Vec<(&'a Path, u32)> {
-    let mut changed_files: Vec<(&Path, u32)> = Vec::new();
-    for (file_path, crc32_ieee_checksum) in files_and_checksums.iter() {
-        let (changed, checksum) = has_file_changed(file_path, crc32_ieee_checksum);
-        if changed {
-            changed_files.push((file_path, checksum));
-        }
-    }
-    changed_files
 }
 
 /// Helper function for reading the whole file content

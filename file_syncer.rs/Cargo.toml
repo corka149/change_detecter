@@ -1,7 +1,15 @@
 [package]
-name = "file_syncer"
+name = "file-syncer"
 version = "0.1.0"
 authors = ["corka149 <corka149@mailbox.org>"]
 
+[lib]
+name = "file_syncer"
+crate-type = ["cdylib"]
+
 [dependencies]
 crc = "1.8.1"
+
+[dependencies.pyo3]
+version = "0.4.1"
+features = ["extension-module"]
