@@ -13,12 +13,13 @@ pub struct DirectoryWatcher<'a> {
     secs_interval: u64,
     file_register: HashMap<PathBuf, u32>,
     dir: &'a Path,
+    recurisve: bool
 }
 
 impl<'a> DirectoryWatcher<'a> {
     /// Creates a new directory watcher. It must be defined an check interval in milliseconds
     /// and a path to the directory which should be watched.
-    pub fn new(secs_interval: u64, path: &str) -> Result<DirectoryWatcher, PathError> {
+    pub fn new(secs_interval: u64, path: &str, recurisve: bool) -> Result<DirectoryWatcher, PathError> {
         let path = Path::new(path);
         if !path.is_dir() {
             return Err(PathError);
@@ -28,16 +29,22 @@ impl<'a> DirectoryWatcher<'a> {
             secs_interval,
             file_register: HashMap::new(),
             dir: Path::new(path),
+            recurisve: recurisve
         })
     }
     
     /// Will wait for the setted interval and then emitt the files that were added oder changed.
     pub fn emitted_changed_files(&mut self) -> Result<Vec<PathBuf>, Box<Error>> {
         let millis = time::Duration::from_secs(self.secs_interval);
+        thread::sleep(millis);
+        self.collect_changed_files(self.dir)
+    }
+
+    /// Collect all changed file in the defined dir and also recurisve when configured.
+    fn collect_changed_files(&mut self, path: &Path) -> Result<Vec<PathBuf>, Box<Error>> {
         let mut changed_files: Vec<PathBuf> = Vec::new();
 
-        thread::sleep(millis);
-        let path_cont: ReadDir = self.dir.read_dir()?;
+        let path_cont: ReadDir = path.read_dir()?;
         for dir_entry in path_cont {
             if let Ok(dir_entry) = dir_entry {
                 let meta_data: Metadata = dir_entry.metadata()?;
@@ -47,6 +54,9 @@ impl<'a> DirectoryWatcher<'a> {
                 if is_new || has_changed {
                     self.register_file(path, checksum);
                     changed_files.push(dir_entry.path());
+                } else if meta_data.is_dir() && self.recurisve {
+                    let files = self.collect_changed_files(&path)?;
+                    changed_files.extend(files);
                 }
             }
         }
@@ -88,19 +98,19 @@ mod tests {
 
     #[test]
     fn test_new_directorywatcher_path_ok() {
-        let test = DirectoryWatcher::new(5, "./test.d");
+        let test = DirectoryWatcher::new(5, "./test.d", false);
         assert!(test.is_ok());
     }
 
     #[test]
     fn test_new_directorywatcher_error_path() {
-        let test = DirectoryWatcher::new(5, "./test_.d");
+        let test = DirectoryWatcher::new(5, "./test_.d", false);
         assert!(test.is_err());
     }
 
     #[test]
     fn test_emitted_changed_files_only_one_file_added(){
-        let mut test = DirectoryWatcher::new(5, "./test.d/1").unwrap();
+        let mut test = DirectoryWatcher::new(5, "./test.d/1", false).unwrap();
         for i in 0..5 {
             let files = test.emitted_changed_files().unwrap();
             if i == 0 {
@@ -114,7 +124,7 @@ mod tests {
     #[test]
     fn test_emitted_changed_files_one_file_added_and_add_another_one_afterwards(){
         let create_file = "test.d/2/test.txt";
-        let mut test = DirectoryWatcher::new(5, "./test.d/2").unwrap();
+        let mut test = DirectoryWatcher::new(5, "./test.d/2", false).unwrap();
 
         try_delete_file("test.d/2/test.txt");
         for i in 0..5 {
@@ -134,7 +144,7 @@ mod tests {
     #[test]
     fn test_emitted_changed_files_one_file_added_and_change_it_afterwards() {
         let create_file = "test.d/4/test.txt";
-        let mut test = DirectoryWatcher::new(5, "./test.d/4").unwrap();
+        let mut test = DirectoryWatcher::new(5, "./test.d/4", false).unwrap();
 
         let mut file = try_create_file(create_file, b"A simple text");
         for i in 0..5 {
@@ -146,6 +156,19 @@ mod tests {
                     },
                 1 => assert_eq!(1, files.len()),
                 _ => assert_eq!(0, files.len(), "{:?}", files)
+            }
+        }
+    }
+
+    #[test]
+    fn test_emitted_changed_files_recursivly(){
+        let mut test = DirectoryWatcher::new(5, "./test.d/5", true).unwrap();
+        for i in 0..5 {
+            let files = test.emitted_changed_files().unwrap();
+            if i == 0 {
+                assert_eq!(4, files.len());
+            } else {
+                assert_eq!(0, files.len());
             }
         }
     }
