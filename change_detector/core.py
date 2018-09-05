@@ -26,28 +26,28 @@ class FileObserver:
         :param once_action: Once performed (e.g.: 'lambda: print("Files were changed")')
         :param foreach_action: Performed for each changed item (e.g.: 'lambda it: print(it)')
         """
-        self.target_dir = target_dir
+        self.__target_dir__ = target_dir
 
-        self.runtime = 60
-        self.interval_in_secs = 5
-        self.recursive = recursive
-        self.parallel_action = parallel_action
-        self.once_action = once_action
-        self.foreach_action = foreach_action
+        self.__runtime__ = 60
+        self.__interval_in_secs__ = 5
+        self.__recursive__ = recursive
+        self.__parallel_action__ = parallel_action
+        self.__once_action__ = once_action
+        self.__foreach_action__ = foreach_action
         # non parameter attributes
-        self.file_register = dict()
-        self.child_process: Process = None
+        self.__file_register__ = dict()
+        self.__child_process__: Process = None
 
     def __add_file__(self, modified_file, changed_files):
-        self.file_register[modified_file] = path.getmtime(modified_file)
+        self.__file_register__[modified_file] = path.getmtime(modified_file)
         changed_files.append(modified_file)
 
     def __is_changed_file__(self, check_file):
-        return path.isfile(check_file) and not path.getmtime(check_file) == self.file_register.get(check_file)
+        return path.isfile(check_file) and not path.getmtime(check_file) == self.__file_register__.get(check_file)
 
     def __wait_and_reduce__(self):
-        time.sleep(self.interval_in_secs)
-        self.runtime -= self.interval_in_secs
+        time.sleep(self.__interval_in_secs__)
+        self.__runtime__ -= self.__interval_in_secs__
 
     def __read_dir__(self, dir_path):
         file_list = list()
@@ -56,51 +56,51 @@ class FileObserver:
                 r_path = path.join(dir_path, it)
                 if path.isfile(r_path):
                     file_list.append(r_path)
-                elif path.isdir(r_path) and self.recursive:
+                elif path.isdir(r_path) and self.__recursive__:
                     file_list += self.__read_dir__(r_path)
         return file_list
 
     def __do_once__(self):
-        self.once_action()
-        log.info("Executed '{}'".format(self.once_action.__name__))
+        self.__once_action__()
+        log.info("Executed '{}'".format(self.__once_action__.__name__))
 
     def __do_in_parallel__(self):
-        if self.child_process is not None and self.child_process.is_alive():
-            self.child_process.terminate()
-        self.child_process = Process(target=self.parallel_action)
-        self.child_process.start()
-        log.info("Executed '{}'".format(self.parallel_action.__name__))
+        if self.__child_process__ is not None and self.__child_process__.is_alive():
+            self.__child_process__.terminate()
+        self.__child_process__ = Process(target=self.__parallel_action__)
+        self.__child_process__.start()
+        log.info("Executed '{}'".format(self.__parallel_action__.__name__))
 
     def __do_foreach_action__(self, changed_files):
         for file in changed_files:
-            self.foreach_action(file)
-            log.info("Executed '{}'".format(self.foreach_action.__name__))
+            self.__foreach_action__(file)
+            log.info("Executed '{}'".format(self.__foreach_action__.__name__))
 
     def change_interval(self, interval_in_secs):
         """Change the interval when the observer should check for changes (Default 5 seconds)"""
-        self.interval_in_secs = interval_in_secs
+        self.__interval_in_secs__ = interval_in_secs
 
     def change_runtime(self, runtime_in_secs):
         """Change how long the observer should run (Default 60 seconds)"""
-        self.runtime = runtime_in_secs
+        self.__runtime__ = runtime_in_secs
 
     def run(self):
         """Starts the file observation"""
-        while self.runtime > 0:
+        while self.__runtime__ > 0:
             self.__wait_and_reduce__()
             changed_files = list()
-            for item in self.__read_dir__(self.target_dir):
+            for item in self.__read_dir__(self.__target_dir__):
                 if self.__is_changed_file__(item) and item not in __file__:
                     self.__add_file__(item, changed_files)
             log.info("Changed files: {}".format(str(changed_files)))
 
-            if len(changed_files) > 0 and self.once_action is not None:
+            if len(changed_files) > 0 and self.__once_action__ is not None:
                 # For one action
                 self.__do_once__()
-            elif len(changed_files) > 0 and self.parallel_action is not None:
+            elif len(changed_files) > 0 and self.__parallel_action__ is not None:
                 # For parallel actions
                 self.__do_in_parallel__()
-            elif len(changed_files) > 0 and self.foreach_action is not None:
+            elif len(changed_files) > 0 and self.__foreach_action__ is not None:
                 # For multiple actions on file change
                 self.__do_foreach_action__(changed_files)
             else:
