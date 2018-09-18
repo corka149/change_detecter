@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{thread, time};
 use std::error::Error;
-use std::fs::{ReadDir, Metadata, DirEntry};
+use std::fs::{ReadDir, Metadata};
 
 use error::PathError;
 
@@ -50,12 +50,13 @@ impl DirectoryWatcher {
             if let Ok(dir_entry) = dir_entry {
                 let meta_data: Metadata = dir_entry.metadata()?;
                 let path = dir_entry.path();
-                let is_new = self.is_new_file(&meta_data, &dir_entry);
-                let (has_changed, checksum) =  self.has_file_changed(&path);
-                if is_new || has_changed {
-                    self.register_file(path, checksum);
-                    if let Some(path_string) = DirectoryWatcher::convert_to_string(&dir_entry.path()) {
-                        changed_files.push(path_string);
+                if meta_data.is_file() {                
+                    let (has_changed, checksum) =  self.has_file_changed(&path);
+                    if has_changed {
+                        self.register_file(path, checksum);
+                        if let Some(path_string) = DirectoryWatcher::convert_to_string(&dir_entry.path()) {
+                            changed_files.push(path_string);
+                        }
                     }
                 } else if meta_data.is_dir() && self.recurisve {
                     let files = self.collect_changed_files(&path)?;
@@ -64,16 +65,6 @@ impl DirectoryWatcher {
             }
         }
         Ok(changed_files)
-    }
-
-    /// Checks if the file was already registered before.
-    fn is_new(&self, path: &PathBuf) -> bool {
-        return !self.file_register.contains_key(path);
-    }
-
-    /// Checks if meta_data describes a file and if yes, was this file registered before
-    fn is_new_file(&self, meta_data: &Metadata, dir_entry: &DirEntry) -> bool {
-        meta_data.is_file() && self.is_new(&dir_entry.path())
     }
 
     /// Registers file when it can be converted to a valid &str.
@@ -85,7 +76,7 @@ impl DirectoryWatcher {
     fn has_file_changed(&self, path: &PathBuf) -> (bool, u32) {
         match self.file_register.get(path) {
             Some(registered_checksum) => checksum::has_file_changed(path, registered_checksum),
-            None => (false, checksum::calc_file_checksum(path))
+            None => (true, checksum::calc_file_checksum(path))
         }
     }
 
@@ -101,10 +92,9 @@ impl DirectoryWatcher {
 mod tests {
 
     use super::DirectoryWatcher;
-    use std::fs::{self, File};
+    use std::fs::File;
     use std::io::prelude::*;
     use std::fs::remove_file;
-    use std::path::Path;
 
     #[test]
     fn test_new_directorywatcher_path_ok() {

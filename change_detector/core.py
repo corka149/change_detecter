@@ -1,8 +1,6 @@
-import os
-import time
 import logging as log
-from os import path
 from multiprocessing import Process
+from change_detector.file_syncer import RsFileSyncer
 
 
 class FileObserver:
@@ -37,27 +35,13 @@ class FileObserver:
         # non parameter attributes
         self.__file_register__ = dict()
         self.__child_process__: Process = None
+        self.__file_syncer__: RsFileSyncer = None
 
-    def __add_file__(self, modified_file, changed_files):
-        self.__file_register__[modified_file] = path.getmtime(modified_file)
-        changed_files.append(modified_file)
-
-    def __is_changed_file__(self, check_file):
-        return path.isfile(check_file) and not path.getmtime(check_file) == self.__file_register__.get(check_file)
-
-    def __wait_and_reduce__(self):
-        time.sleep(self.__interval_in_secs__)
+    def __read_dir__(self):
+        if self.__file_syncer__ is None:
+            self.__file_syncer__ = RsFileSyncer(self.__interval_in_secs__, self.__target_dir__, self.__recursive__)
+        file_list = self.__file_syncer__.emit_changed_files()
         self.__runtime__ -= self.__interval_in_secs__
-
-    def __read_dir__(self, dir_path):
-        file_list = list()
-        if path.isdir(dir_path):
-            for it in os.listdir(dir_path):
-                r_path = path.join(dir_path, it)
-                if path.isfile(r_path):
-                    file_list.append(r_path)
-                elif path.isdir(r_path) and self.__recursive__:
-                    file_list += self.__read_dir__(r_path)
         return file_list
 
     def __do_once__(self):
@@ -78,29 +62,27 @@ class FileObserver:
 
     def change_interval(self, interval_in_secs):
         """Change the interval when the observer should check for changes (Default 5 seconds)"""
+        self.__file_syncer__ = None
         self.__interval_in_secs__ = interval_in_secs
 
     def change_runtime(self, runtime_in_secs):
         """Change how long the observer should run (Default 60 seconds)"""
+        self.__file_syncer__ = None
         self.__runtime__ = runtime_in_secs
 
     def run(self):
         """Starts the file observation"""
         while self.__runtime__ > 0:
-            self.__wait_and_reduce__()
-            changed_files = list()
-            for item in self.__read_dir__(self.__target_dir__):
-                if self.__is_changed_file__(item) and item not in __file__:
-                    self.__add_file__(item, changed_files)
+            changed_files = self.__read_dir__()
             log.info("Changed files: {}".format(str(changed_files)))
 
-            if len(changed_files) > 0 and self.__once_action__ is not None:
+            if changed_files is not None and len(changed_files) > 0 and self.__once_action__ is not None:
                 # For one action
                 self.__do_once__()
-            elif len(changed_files) > 0 and self.__parallel_action__ is not None:
+            elif changed_files is not None and len(changed_files) > 0 and self.__parallel_action__ is not None:
                 # For parallel actions
                 self.__do_in_parallel__()
-            elif len(changed_files) > 0 and self.__foreach_action__ is not None:
+            elif changed_files is not None and len(changed_files) > 0 and self.__foreach_action__ is not None:
                 # For multiple actions on file change
                 self.__do_foreach_action__(changed_files)
             else:

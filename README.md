@@ -1,5 +1,9 @@
 # Change detector
 
+A simple library for detect changes of files with help of Rust.
+
+Files are checked via CRC32.
+
 ## Example
 ```python
 import logging as log

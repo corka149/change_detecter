@@ -11,7 +11,7 @@ pub fn calc_file_checksum(path: &Path) -> u32 {
     match read_file(path) {
         Ok(content) => calculate_crc32(&content),
         Err(e) => {
-            eprintln!("Error occured while caluclating checksum: {:?}", e);
+            eprintln!("Error occured while caluclating checksum: {:?} for: {:?}", e, path);
             0
         }
     }    
@@ -19,6 +19,7 @@ pub fn calc_file_checksum(path: &Path) -> u32 {
 
 /// Checks if the checksum of a file is the same
 pub fn has_file_changed(file_path: &Path, crc32_ieee_checksum: &u32) -> (bool, u32) {
+	
     match read_file(file_path) {
         Ok(bytes) => {
                 let calc_checksum = calculate_crc32(&bytes);
