@@ -13,7 +13,7 @@ __pycache__/
 *$py.class
 
 # C extensions
-*.so
+#*.so
 
 # Distribution / packaging
 .Python
@@ -113,3 +113,5 @@ venv.bak/
 .mypy_cache/
 
 .idea/
+.project
+*.lock
