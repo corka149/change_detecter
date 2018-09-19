@@ -8,5 +8,6 @@ setup(
     license='MIT',
     author='Corka149',
     author_email='corka149@mailbox.org',
+    include_package_data=True,
     description='A library to perform different actions, performed when files changed.'
 )

@@ -1,0 +1,2 @@
+include change_detector/file_syncer/file_syncer.pyd
+include change_detector/file_syncer/file_syncer.so
