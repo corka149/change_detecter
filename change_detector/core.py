@@ -26,8 +26,8 @@ class FileObserver:
         """
         self.__target_dir__ = target_dir
 
-        self.__runtime__ = 60
-        self.__interval_in_secs__ = 5
+        self.__runtime__ = 24 * 60 * 60  # One day
+        self.__interval_in_secs__ = 15
         self.__recursive__ = recursive
         self.__parallel_action__ = parallel_action
         self.__once_action__ = once_action
